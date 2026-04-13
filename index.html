@@ -176,28 +176,31 @@
             clearTimeout(voiceTimeout1);
             clearTimeout(voiceTimeout2);
 
-            if (cmd.includes("sang phải") || cmd.includes("tiến về bên phải") || cmd.includes("tiến bên phải")) {
+            // NHÓM 1: CÁC LỆNH ĐI SANG HƯỚNG (Ưu tiên kiểm tra trước)
+            if (cmd.includes("sang phải") || cmd.includes("tiến về bên phải") || cmd.includes("tiến bên phải") || cmd.includes("đi sang phải")) {
                 send('R'); 
                 voiceTimeout1 = setTimeout(() => {
                     send('F'); 
                     voiceTimeout2 = setTimeout(() => send('S'), TIME_SHORT_MOVE);
                 }, TIME_TURN_90);
             } 
-            else if (cmd.includes("sang trái") || cmd.includes("tiến về bên trái") || cmd.includes("tiến bên trái")) {
+            else if (cmd.includes("sang trái") || cmd.includes("tiến về bên trái") || cmd.includes("tiến bên trái") || cmd.includes("đi sang trái")) {
                 send('L'); 
                 voiceTimeout1 = setTimeout(() => {
                     send('F'); 
                     voiceTimeout2 = setTimeout(() => send('S'), TIME_SHORT_MOVE);
                 }, TIME_TURN_90);
             }
-            else if (cmd.includes("quay phải")) {
+            // NHÓM 2: CÁC LỆNH XOAY TẠI CHỖ (Chỉ cần bắt chữ Phải/Trái)
+            else if (cmd.includes("phải")) {
                 send('R');
                 voiceTimeout1 = setTimeout(() => send('S'), TIME_TURN_90);
             } 
-            else if (cmd.includes("quay trái")) {
+            else if (cmd.includes("trái")) {
                 send('L');
                 voiceTimeout1 = setTimeout(() => send('S'), TIME_TURN_90);
             }
+            // NHÓM 3: CÁC LỆNH ĐI THẲNG/LÙI
             else if (cmd.includes("tới") || cmd.includes("tiến") || cmd.includes("lên")) {
                 send('F');
                 voiceTimeout1 = setTimeout(() => send('S'), TIME_SHORT_MOVE); 
@@ -206,6 +209,7 @@
                 send('B');
                 voiceTimeout1 = setTimeout(() => send('S'), TIME_SHORT_MOVE);
             } 
+            // NHÓM 4: DỪNG LẠI
             else if (cmd.includes("dừng") || cmd.includes("lại")) {
                 send('S');
             }
@@ -224,7 +228,7 @@
         }
 
         function stopVoice() {
-            recognition.stop();
+            if (recognition) recognition.stop();
             voiceActive = false;
             document.getElementById('btn-voice').innerText = "BẬT ĐIỀU KHIỂN GIỌNG NÓI";
             document.getElementById('btn-voice').classList.remove('active');
