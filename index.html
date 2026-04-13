@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Robot Control Center</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background-color: #1a1a1a; color: white; margin: 0; user-select: none; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background-color: #1a1a1a; color: white; margin: 0; }
         .header { background: #2c3e50; padding: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
         .main-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; padding: 20px; }
         
         /* Video Area */
         .video-wrapper { display: flex; flex-direction: column; gap: 15px; }
         .cam-box { border: 4px solid #34495e; border-radius: 10px; overflow: hidden; background: #000; width: 640px; height: 480px; position: relative; max-width: 100%; }
-        .cam-box img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+        .cam-box img { width: 100%; height: 100%; object-fit: cover; }
         .label { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 5px 10px; font-size: 14px; border-radius: 5px; z-index: 10; font-weight: bold;}
 
         /* Sidebar Controls */
@@ -23,20 +23,20 @@
         
         /* Buttons */
         .controls { display: grid; grid-template-columns: repeat(3, 75px); gap: 12px; justify-content: center; margin-bottom: 20px; }
-        .btn { padding: 18px; font-size: 20px; cursor: pointer; background: #34495e; border: 1px solid #5d6d7e; color: white; border-radius: 12px; transition: 0.2s; touch-action: manipulation;}
+        .btn { padding: 18px; font-size: 20px; cursor: pointer; background: #34495e; border: 1px solid #5d6d7e; color: white; border-radius: 12px; transition: 0.2s; }
         .btn:active { background: #2ecc71; transform: scale(0.9); }
         .btn-stop { background: #e74c3c; grid-column: 2; }
 
         /* Mode Buttons */
-        .mode-btn { width: 100%; padding: 15px; margin-top: 10px; border: none; border-radius: 8px; color: white; font-weight: bold; cursor: pointer; transition: 0.3s; font-size: 14px; touch-action: manipulation;}
+        .mode-btn { width: 100%; padding: 15px; margin-top: 10px; border: none; border-radius: 8px; color: white; font-weight: bold; cursor: pointer; transition: 0.3s; font-size: 14px;}
         .btn-voice { background: #9b59b6; } 
-        .btn-voice.active { background: #8e44ad; box-shadow: 0 0 15px #9b59b6; animation: pulse 1.5s infinite; transform: scale(0.98);}
+        .btn-voice.active { background: #8e44ad; box-shadow: 0 0 15px #9b59b6; animation: pulse 1.5s infinite; }
         .btn-auto { background: #16a085; }
 
         #voice-log { font-size: 13px; color: #f1c40f; margin-top: 10px; min-height: 20px; font-style: italic; }
         .keyboard-hint { font-size: 12px; margin-top: 15px; color: #bdc3c7; }
 
-        @keyframes pulse { 0% { transform: scale(0.98); } 50% { transform: scale(1.02); } 100% { transform: scale(0.98); } }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body>
@@ -71,12 +71,8 @@
 
             <button class="mode-btn btn-auto" onclick="toggleAuto()">BẬT TỰ ĐỘNG NÉ VẬT CẢN</button>
             
-            <button id="btn-voice" class="mode-btn btn-voice" 
-                    onmousedown="startVoice()" onmouseup="stopVoice()" onmouseleave="stopVoice()"
-                    ontouchstart="startVoice()" ontouchend="stopVoice()">
-                NHẤN GIỮ ĐỂ NÓI 🎤
-            </button>
-            <div id="voice-log">Đang chờ lệnh...</div>
+            <button id="btn-voice" class="mode-btn btn-voice" onclick="toggleVoice()">BẬT ĐIỀU KHIỂN GIỌNG NÓI</button>
+            <div id="voice-log">Đang chờ lệnh giọng nói...</div>
             
             <div class="keyboard-hint">💡 Gợi ý: Có thể dùng phím W, A, S, D trên máy tính để lái</div>
         </div>
@@ -88,17 +84,18 @@
         let lastCmd = 'S';
         let autoActive = false;
         
-        // --- THÔNG SỐ GIỌNG NÓI ---
-        const TIME_SHORT_MOVE = 400; // ms chạy thoáng chốc
-        const TIME_TURN_90 = 600;    // ms xoay góc
+        // Cấu hình thời gian cho giọng nói
+        const TIME_SHORT_MOVE = 400; 
+        const TIME_TURN_90 = 600;    
         let voiceTimeout1, voiceTimeout2; 
 
         // ==========================================
-        // 1. GỬI LỆNH ĐẾN ESP32
+        // 1. HỆ THỐNG GỬI LỆNH & MAP HƯỚNG DI CHUYỂN
         // ==========================================
         function send(dir) {
-            if(autoActive && dir !== 'S') return; 
+            if(autoActive && dir !== 'S') return; // Không cho gửi lệnh tay khi đang bật Auto
             if (dir !== lastCmd) {
+                // Hiển thị chữ tiếng Việt tương ứng
                 let dirText = "Dừng 🛑";
                 if(dir === 'F') dirText = "Tiến ⬆️";
                 else if(dir === 'B') dirText = "Lùi ⬇️";
@@ -106,6 +103,8 @@
                 else if(dir === 'R') dirText = "Phải ➡️";
 
                 document.getElementById('stt-text').innerText = dirText;
+                
+                // Gửi lệnh tới ESP32
                 fetch(`${ESP32_IP}/move?dir=${dir}`).catch(() => {});
                 lastCmd = dir;
             }
@@ -115,9 +114,10 @@
             autoActive = !autoActive;
             document.getElementById('mode-text').innerText = autoActive ? "TỰ ĐỘNG NÉ" : "THỦ CÔNG";
             fetch(`${ESP32_IP}/mode?auto=${autoActive ? 1 : 0}`).catch(() => {});
-            if(autoActive) send('S'); 
+            if(autoActive) send('S'); // Reset về trạng thái dừng trên giao diện
         }
 
+        // Lấy dữ liệu cảm biến liên tục
         setInterval(() => {
             fetch(`${ESP32_IP}/data`)
                 .then(res => res.json())
@@ -133,7 +133,7 @@
         }, 500);
 
         // ==========================================
-        // 2. BÀN PHÍM
+        // 2. ĐIỀU KHIỂN BẰNG BÀN PHÍM
         // ==========================================
         document.addEventListener('keydown', (e) => {
             if(e.repeat) return;
@@ -143,28 +143,27 @@
             else if(key === 'a') send('L');
             else if(key === 'd') send('R');
         });
+        
         document.addEventListener('keyup', (e) => {
             if(['w','a','s','d'].includes(e.key.toLowerCase())) send('S');
         });
 
         // ==========================================
-        // 3. ĐIỀU KHIỂN GIỌNG NÓI (HOLD TO SPEAK)
+        // 3. ĐIỀU KHIỂN GIỌNG NÓI
         // ==========================================
         let recognition;
-        let isHoldingVoice = false;
+        let voiceActive = false;
 
         if ('webkitSpeechRecognition' in window) {
             recognition = new webkitSpeechRecognition();
             recognition.lang = 'vi-VN'; 
             recognition.continuous = true;
-            recognition.interimResults = true; // BẬT ĐỂ NHẬN LỆNH NGAY LẬP TỨC KHÔNG CẦN CHỜ
+            recognition.interimResults = false;
 
             recognition.onresult = (event) => {
-                // Lấy kết quả mới nhất đang được nói
-                let transcript = event.results[event.results.length - 1][0].transcript.toLowerCase();
-                document.getElementById('voice-log').innerText = "🗣️ Đang nghe: " + transcript;
-                
-                processImmediateVoice(transcript);
+                const result = event.results[event.results.length - 1][0].transcript.toLowerCase();
+                document.getElementById('voice-log').innerText = "🗣️ Bạn đã nói: " + result;
+                handleVoiceCommand(result);
             };
 
             recognition.onerror = (e) => {
@@ -173,99 +172,64 @@
             };
         }
 
-        function processImmediateVoice(transcript) {
-            // "Mã hóa" các cụm từ đặc biệt để ưu tiên trước
-            let safeText = transcript.replace(/sang phải/g, "cmd_sp").replace(/sang trái/g, "cmd_st");
-            
-            // Tìm từ khóa cuối cùng được nhắc đến trong chuỗi để cập nhật lệnh ngay lập tức
-            const cmds = {
-                "cmd_sp": "SR", // Sang phải (Xoay -> tiến -> dừng)
-                "cmd_st": "SL", // Sang trái (Xoay -> tiến -> dừng)
-                "phải": "R",    // Xoay phải (Chỉ nhận diện chữ phải)
-                "trái": "L",    // Xoay trái (Chỉ nhận diện chữ trái)
-                "tiến": "F", "lên": "F", "tới": "F",
-                "lùi": "B", "xuống": "B",
-                "dừng": "S", "lại": "S"
-            };
-            
-            let foundCmd = null;
-            let lastIdx = -1;
-            
-            // Tìm vị trí xuất hiện cuối cùng của các từ khóa, từ khóa nào nằm cuối cùng sẽ được thi hành
-            for (const [kw, action] of Object.entries(cmds)) {
-                let idx = safeText.lastIndexOf(kw);
-                if (idx > lastIdx) {
-                    lastIdx = idx;
-                    foundCmd = action;
-                }
-            }
-
-            if (foundCmd) {
-                executeVoiceAction(foundCmd);
-            }
-        }
-
-        function executeVoiceAction(action) {
-            // Xóa các lệnh dừng cũ để thay thế bằng lệnh mới nếu người dùng vẫn đang đọc
+        function handleVoiceCommand(cmd) {
             clearTimeout(voiceTimeout1);
             clearTimeout(voiceTimeout2);
 
-            if (action === "SR") {
+            if (cmd.includes("sang phải") || cmd.includes("tiến về bên phải") || cmd.includes("tiến bên phải")) {
                 send('R'); 
                 voiceTimeout1 = setTimeout(() => {
                     send('F'); 
                     voiceTimeout2 = setTimeout(() => send('S'), TIME_SHORT_MOVE);
                 }, TIME_TURN_90);
             } 
-            else if (action === "SL") {
+            else if (cmd.includes("sang trái") || cmd.includes("tiến về bên trái") || cmd.includes("tiến bên trái")) {
                 send('L'); 
                 voiceTimeout1 = setTimeout(() => {
                     send('F'); 
                     voiceTimeout2 = setTimeout(() => send('S'), TIME_SHORT_MOVE);
                 }, TIME_TURN_90);
             }
-            else if (action === "R") {
+            else if (cmd.includes("quay phải")) {
                 send('R');
                 voiceTimeout1 = setTimeout(() => send('S'), TIME_TURN_90);
             } 
-            else if (action === "L") {
+            else if (cmd.includes("quay trái")) {
                 send('L');
                 voiceTimeout1 = setTimeout(() => send('S'), TIME_TURN_90);
             }
-            else if (action === "F") {
+            else if (cmd.includes("tới") || cmd.includes("tiến") || cmd.includes("lên")) {
                 send('F');
                 voiceTimeout1 = setTimeout(() => send('S'), TIME_SHORT_MOVE); 
             } 
-            else if (action === "B") {
+            else if (cmd.includes("lùi") || cmd.includes("xuống")) {
                 send('B');
                 voiceTimeout1 = setTimeout(() => send('S'), TIME_SHORT_MOVE);
             } 
-            else if (action === "S") {
+            else if (cmd.includes("dừng") || cmd.includes("lại")) {
                 send('S');
             }
         }
 
-        function startVoice() {
-            if (!recognition) return alert("Trình duyệt không hỗ trợ (Hãy dùng Chrome).");
-            if (isHoldingVoice) return;
-            isHoldingVoice = true;
-            
-            try { recognition.start(); } catch(e) {} // Bắt đầu nghe
-            
-            document.getElementById('btn-voice').innerText = "ĐANG NGHE... 🗣️ (THẢ RA ĐỂ DỪNG)";
-            document.getElementById('btn-voice').classList.add('active');
-            document.getElementById('voice-log').innerText = "Vui lòng nói lệnh...";
+        function toggleVoice() {
+            if (!recognition) return alert("Trình duyệt không hỗ trợ Web Speech API (Hãy dùng Chrome).");
+            if (!voiceActive) {
+                recognition.start();
+                voiceActive = true;
+                document.getElementById('btn-voice').innerText = "ĐANG NGHE... (BẤM ĐỂ TẮT)";
+                document.getElementById('btn-voice').classList.add('active');
+            } else {
+                stopVoice();
+            }
         }
 
         function stopVoice() {
-            if (!isHoldingVoice) return;
-            isHoldingVoice = false;
-            
-            try { recognition.stop(); } catch(e) {} // Dừng nghe
-            
-            document.getElementById('btn-voice').innerText = "NHẤN GIỮ ĐỂ NÓI 🎤";
+            recognition.stop();
+            voiceActive = false;
+            document.getElementById('btn-voice').innerText = "BẬT ĐIỀU KHIỂN GIỌNG NÓI";
             document.getElementById('btn-voice').classList.remove('active');
-            document.getElementById('voice-log').innerText = "Đã tắt micro.";
+            document.getElementById('voice-log').innerText = "Đã tắt giọng nói.";
+            send('S');
         }
     </script>
 </body>
