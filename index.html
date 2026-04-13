@@ -31,7 +31,6 @@
         .mode-btn { width: 100%; padding: 15px; margin-top: 10px; border: none; border-radius: 8px; color: white; font-weight: bold; cursor: pointer; transition: 0.3s; font-size: 14px;}
         .btn-voice { background: #9b59b6; } 
         .btn-voice.active { background: #8e44ad; box-shadow: 0 0 15px #9b59b6; animation: pulse 1.5s infinite; }
-        .btn-auto { background: #16a085; }
 
         #voice-log { font-size: 13px; color: #f1c40f; margin-top: 10px; min-height: 20px; font-style: italic; }
         .keyboard-hint { font-size: 12px; margin-top: 15px; color: #bdc3c7; }
@@ -56,7 +55,7 @@
         <div class="sidebar">
             <div class="status-box">
                 Kết nối: <span id="conn-status" class="disconnected">Đang tìm ESP32...</span><br>
-                Phát hiện vật cản: <span id="dist-val" class="val">0</span> mm<br>
+                Phát hiện vật cản: <span id="dist-val" class="val">0</span> cm<br>
                 Hướng di chuyển: <span id="stt-text" class="val">Dừng 🛑</span><br>
                 Chế độ điều khiển: <span id="mode-text" class="val">THỦ CÔNG</span>
             </div>
@@ -69,8 +68,6 @@
                 <div></div><button class="btn" onmousedown="send('B')" onmouseup="send('S')" ontouchstart="send('B')" ontouchend="send('S')">▼</button><div></div>
             </div>
 
-            <button class="mode-btn btn-auto" onclick="toggleAuto()">BẬT TỰ ĐỘNG NÉ VẬT CẢN</button>
-            
             <button id="btn-voice" class="mode-btn btn-voice" onclick="toggleVoice()">BẬT ĐIỀU KHIỂN GIỌNG NÓI</button>
             <div id="voice-log">Đang chờ lệnh giọng nói...</div>
             
@@ -82,7 +79,6 @@
         const ESP32_IP = "http://192.168.1.10"; 
         
         let lastCmd = 'S';
-        let autoActive = false;
         
         // Cấu hình thời gian cho giọng nói
         const TIME_SHORT_MOVE = 400; 
@@ -93,7 +89,6 @@
         // 1. HỆ THỐNG GỬI LỆNH & MAP HƯỚNG DI CHUYỂN
         // ==========================================
         function send(dir) {
-            if(autoActive && dir !== 'S') return; // Không cho gửi lệnh tay khi đang bật Auto
             if (dir !== lastCmd) {
                 // Hiển thị chữ tiếng Việt tương ứng
                 let dirText = "Dừng 🛑";
@@ -110,19 +105,14 @@
             }
         }
 
-        function toggleAuto() {
-            autoActive = !autoActive;
-            document.getElementById('mode-text').innerText = autoActive ? "TỰ ĐỘNG NÉ" : "THỦ CÔNG";
-            fetch(`${ESP32_IP}/mode?auto=${autoActive ? 1 : 0}`).catch(() => {});
-            if(autoActive) send('S'); // Reset về trạng thái dừng trên giao diện
-        }
-
         // Lấy dữ liệu cảm biến liên tục
         setInterval(() => {
             fetch(`${ESP32_IP}/data`)
                 .then(res => res.json())
                 .then(data => {
-                    document.getElementById('dist-val').innerText = data.dist;
+                    // Cảm biến trả về mm, chia 10 để ra cm (làm tròn 1 chữ số thập phân)
+                    let distCm = (data.dist / 10).toFixed(1);
+                    document.getElementById('dist-val').innerText = distCm;
                     document.getElementById('conn-status').innerText = "ĐÃ KẾT NỐI ESP32";
                     document.getElementById('conn-status').className = "val";
                 })
@@ -176,31 +166,31 @@
             clearTimeout(voiceTimeout1);
             clearTimeout(voiceTimeout2);
 
-            // NHÓM 1: CÁC LỆNH ĐI SANG HƯỚNG (Ưu tiên kiểm tra trước)
-            if (cmd.includes("sang phải") || cmd.includes("tiến về bên phải") || cmd.includes("tiến bên phải") || cmd.includes("đi sang phải")) {
+            // Xoay hướng rồi tiến
+            if (cmd.includes("sang phải") || cmd.includes("tiến về bên phải") || cmd.includes("tiến bên phải")) {
                 send('R'); 
                 voiceTimeout1 = setTimeout(() => {
                     send('F'); 
                     voiceTimeout2 = setTimeout(() => send('S'), TIME_SHORT_MOVE);
                 }, TIME_TURN_90);
             } 
-            else if (cmd.includes("sang trái") || cmd.includes("tiến về bên trái") || cmd.includes("tiến bên trái") || cmd.includes("đi sang trái")) {
+            else if (cmd.includes("sang trái") || cmd.includes("tiến về bên trái") || cmd.includes("tiến bên trái")) {
                 send('L'); 
                 voiceTimeout1 = setTimeout(() => {
                     send('F'); 
                     voiceTimeout2 = setTimeout(() => send('S'), TIME_SHORT_MOVE);
                 }, TIME_TURN_90);
             }
-            // NHÓM 2: CÁC LỆNH XOAY TẠI CHỖ (Chỉ cần bắt chữ Phải/Trái)
-            else if (cmd.includes("phải")) {
+            // Xoay tại chỗ 
+            else if (cmd.includes("xoay phải")) {
                 send('R');
                 voiceTimeout1 = setTimeout(() => send('S'), TIME_TURN_90);
             } 
-            else if (cmd.includes("trái")) {
+            else if (cmd.includes("xoay trái")) {
                 send('L');
                 voiceTimeout1 = setTimeout(() => send('S'), TIME_TURN_90);
             }
-            // NHÓM 3: CÁC LỆNH ĐI THẲNG/LÙI
+            // Đi tới/lui
             else if (cmd.includes("tới") || cmd.includes("tiến") || cmd.includes("lên")) {
                 send('F');
                 voiceTimeout1 = setTimeout(() => send('S'), TIME_SHORT_MOVE); 
@@ -209,7 +199,7 @@
                 send('B');
                 voiceTimeout1 = setTimeout(() => send('S'), TIME_SHORT_MOVE);
             } 
-            // NHÓM 4: DỪNG LẠI
+            // Dừng
             else if (cmd.includes("dừng") || cmd.includes("lại")) {
                 send('S');
             }
@@ -228,7 +218,7 @@
         }
 
         function stopVoice() {
-            if (recognition) recognition.stop();
+            recognition.stop();
             voiceActive = false;
             document.getElementById('btn-voice').innerText = "BẬT ĐIỀU KHIỂN GIỌNG NÓI";
             document.getElementById('btn-voice').classList.remove('active');
