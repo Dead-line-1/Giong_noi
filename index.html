@@ -20,6 +20,7 @@
         .status-box { text-align: left; font-size: 15px; background: #34495e; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid #3498db; line-height: 1.6; }
         .val { color: #2ecc71; font-weight: bold; }
         .disconnected { color: #e74c3c; font-weight: bold; }
+        .warning { color: #f39c12; font-weight: bold; }
         
         /* Buttons */
         .controls { display: grid; grid-template-columns: repeat(3, 75px); gap: 12px; justify-content: center; margin-bottom: 20px; }
@@ -55,7 +56,7 @@
         <div class="sidebar">
             <div class="status-box">
                 Kết nối: <span id="conn-status" class="disconnected">Đang tìm ESP32...</span><br>
-                Phát hiện vật cản: <span id="dist-val" class="val">0</span> cm<br>
+                Phát hiện vật cản: <span id="dist-val" class="val">0</span> cm <span id="warning-msg" class="warning"></span><br>
                 Hướng di chuyển: <span id="stt-text" class="val">Dừng 🛑</span><br>
                 Chế độ điều khiển: <span id="mode-text" class="val">THỦ CÔNG</span>
             </div>
@@ -79,6 +80,7 @@
         const ESP32_IP = "http://192.168.1.10"; 
         
         let lastCmd = 'S';
+        let currentDistance = 999; // Khởi tạo khoảng cách an toàn mặc định
         
         // Cấu hình thời gian cho giọng nói
         const TIME_SHORT_MOVE = 400; 
@@ -89,6 +91,12 @@
         // 1. HỆ THỐNG GỬI LỆNH & MAP HƯỚNG DI CHUYỂN
         // ==========================================
         function send(dir) {
+            // Lọc lệnh: Nếu lệnh là tiến (F) nhưng khoảng cách <= 10cm thì chặn lại và ép về dừng (S)
+            if (dir === 'F' && currentDistance <= 10) {
+                dir = 'S';
+                document.getElementById('warning-msg').innerText = "(Quá gần!)";
+            }
+
             if (dir !== lastCmd) {
                 // Hiển thị chữ tiếng Việt tương ứng
                 let dirText = "Dừng 🛑";
@@ -112,9 +120,23 @@
                 .then(data => {
                     // Cảm biến trả về mm, chia 10 để ra cm (làm tròn 1 chữ số thập phân)
                     let distCm = (data.dist / 10).toFixed(1);
+                    currentDistance = parseFloat(distCm); // Cập nhật biến toàn cục
+
                     document.getElementById('dist-val').innerText = distCm;
                     document.getElementById('conn-status').innerText = "ĐÃ KẾT NỐI ESP32";
                     document.getElementById('conn-status').className = "val";
+
+                    // Logic cảnh báo và tự động dừng khi gặp vật cản <= 10cm
+                    if (currentDistance <= 10) {
+                        document.getElementById('dist-val').className = "disconnected"; // Đổi màu đỏ
+                        if (lastCmd === 'F') {
+                            send('S'); // Tự động gửi lệnh dừng nếu đang đi tới
+                            document.getElementById('warning-msg').innerText = "(Đã tự động dừng!)";
+                        }
+                    } else {
+                        document.getElementById('dist-val').className = "val"; // Trả lại màu xanh
+                        document.getElementById('warning-msg').innerText = "";
+                    }
                 })
                 .catch(() => {
                     document.getElementById('conn-status').innerText = "MẤT KẾT NỐI ESP32";
